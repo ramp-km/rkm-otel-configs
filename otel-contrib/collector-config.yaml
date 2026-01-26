@@ -1,0 +1,386 @@
+# External Collector Configuration File
+# This file contains only the config section for the OpenTelemetry Collector
+# Use with: helm upgrade ... --values opentelemetry-contrib-values.yaml --values collector-config.yaml
+
+# REQUIRED: Valid values are "daemonset", "deployment", and "statefulset"
+# - daemonset: One pod per node (best for node-level collection)
+# - deployment: Single or multiple replicas (best for centralized collection)
+# - statefulset: Stateful deployment with persistent storage
+mode: "daemonset"
+
+hostNetwork: true
+# Use Kubernetes DNS even with hostNetwork: true
+# This allows the pod to resolve Kubernetes service names
+dnsPolicy: ClusterFirstWithHostNet
+
+presets:
+  # Configures the collector to collect logs from files
+  # Adds the filelog receiver to the logs pipeline
+  # Best used with mode = daemonset
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: true
+    # Enabling this writes checkpoints in /var/lib/otelcol/ host directory
+    # Note: This changes collector's user to root
+    storeCheckpoints: true
+    # Maximum bytes size of the recombined field
+    maxRecombineLogSize: 102400
+
+  # Configures the collector to collect host metrics
+  # Adds the hostmetrics receiver to the metrics pipeline
+  # Best used with mode = daemonset
+  hostMetrics:
+    enabled: true
+
+  # Configures the Kubernetes Processor to add Kubernetes metadata
+  # Adds the k8sattributes processor to all pipelines
+  # Adds minimum required RBAC rules to ClusterRole
+  # Best used with mode = daemonset
+  kubernetesAttributes:
+    enabled: true
+    # Extract all pod labels as resource attributes
+    extractAllPodLabels: true
+    # Extract all pod annotations as resource attributes
+    extractAllPodAnnotations: true
+
+  # Configures the collector to collect node, pod, and container metrics from kubelet
+  # Adds the kubeletstats receiver to the metrics pipeline
+  # Best used with mode = daemonset
+  kubeletMetrics:
+    enabled: false
+
+  # Configures the collector to collect kubernetes events
+  # Adds the k8sobjects receiver to the logs pipeline
+  # Best used with mode = deployment or statefulset
+  kubernetesEvents:
+    enabled: true
+
+  # Configures the Kubernetes Cluster Receiver to collect cluster-level metrics
+  # Adds the k8s_cluster receiver to the metrics pipeline
+  # Can be used with mode = deployment, statefulset, or daemonset
+  # When used as daemonset, leader election is setup to prevent duplication
+  clusterMetrics:
+    enabled: true
+    # When enabled with mode = daemonset, leader election is setup
+    # disableLeaderElection: false
+
+config:
+  connectors: {}
+  exporters:
+    debug: {}
+    otlp/gateway:
+      endpoint: "http://opentelemetry-kube-stack-gateway-collector-headless.default.svc.cluster.local:4317"
+      tls:
+        insecure: true
+    # elasticsearch/otel:
+    #   endpoints:
+    #     - ${env:ELASTICSEARCH_ENDPOINT}
+    #   api_key: ${env:ELASTICSEARCH_API_KEY}
+    #   mapping:
+    #     mode: otel
+
+  extensions:
+    # The health_check extension is MANDATORY for this chart
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  processors:
+    resource/set_node_name:
+      attributes:
+        - key: k8s.node.name
+          value: "${env:OTEL_K8S_NODE_NAME}" # Use OTEL_K8S_NODE_NAME for EKS detector compatibility
+          action: upsert
+    resourcedetection/eks:
+      detectors: [env, eks]
+      timeout: 15s
+      override: false
+      eks:
+        resource_attributes:
+          k8s.cluster.name:
+            enabled: true
+    resourcedetection/gcp:
+      detectors: [env, gcp]
+      timeout: 2s
+      override: true
+    resourcedetection/aks:
+      detectors: [env, aks]
+      timeout: 2s
+      override: true
+      aks:
+        resource_attributes:
+          k8s.cluster.name:
+            enabled: true
+    resource/hostname:
+      attributes:
+        - key: host.name
+          from_attribute: k8s.node.name
+          action: upsert
+    resourcedetection/system:
+      detectors: ["system", "ec2"]
+      system:
+        hostname_sources: ["os"]
+        resource_attributes:
+          host.name:
+            enabled: true
+          host.id:
+            enabled: false
+          host.arch:
+            enabled: true
+          host.ip:
+            enabled: true
+          host.mac:
+            enabled: true
+          host.cpu.vendor.id:
+            enabled: true
+          host.cpu.family:
+            enabled: true
+          host.cpu.model.id:
+            enabled: true
+          host.cpu.model.name:
+            enabled: true
+          host.cpu.stepping:
+            enabled: true
+          host.cpu.cache.l2.size:
+            enabled: true
+          os.description:
+            enabled: true
+          os.type:
+            enabled: true
+      ec2:
+        resource_attributes:
+          host.name:
+            enabled: false
+          host.id:
+            enabled: true
+    resource/cloud:
+      attributes:
+        - key: cloud.instance.id
+          from_attribute: host.id
+          action: insert
+    batch:
+      send_batch_size: 1000
+      timeout: 1s
+      send_batch_max_size: 1500
+    batch/metrics:
+      send_batch_max_size: 0
+      timeout: 1s
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:14250
+        thrift_http:
+          endpoint: ${env:MY_POD_IP}:14268
+        thrift_compact:
+          endpoint: ${env:MY_POD_IP}:6831
+    zipkin:
+      endpoint: ${env:MY_POD_IP}:9411
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+              - targets:
+                  - ${env:MY_POD_IP}:8888
+    filelog:
+      retry_on_failure:
+        enabled: true
+      start_at: end
+      exclude:
+        - /var/log/pods/*opentelemetry-kube-stack*/*/*.log
+      include:
+        - /var/log/pods/*/*/*.log
+      include_file_name: false
+      include_file_path: true
+      operators:
+        - id: container-parser
+          type: container
+    kubeletstats:
+      auth_type: serviceAccount # Authentication mechanism with the Kubelet endpoint, refer to: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kubeletstatsreceiver#configuration
+      collection_interval: 60s
+      endpoint: ${env:OTEL_K8S_NODE_NAME}:10250
+      node: '${env:OTEL_K8S_NODE_NAME}'
+      # Required to work for all CSPs without an issue
+      insecure_skip_verify: true
+      k8s_api_config:
+        auth_type: serviceAccount
+
+  service:
+    telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+    extensions:
+      - health_check
+    pipelines:
+      metrics:
+        receivers:
+          - otlp
+        processors:
+          - batch/metrics
+        exporters:
+          - debug
+          - otlp/gateway
+      logs:
+        receivers:
+          - otlp
+          - filelog
+        processors:
+          - batch
+          - k8sattributes
+          - resource/set_node_name
+          - resourcedetection/system
+          - resourcedetection/eks
+          - resourcedetection/gcp
+          - resourcedetection/aks
+          - resource/hostname
+          - resource/cloud
+        exporters:
+          - debug
+          - otlp/gateway
+      metrics/node/otel:
+        receivers:
+          - kubeletstats
+          - hostmetrics
+        processors:
+          - batch/metrics
+          - k8sattributes
+          - resource/set_node_name
+          - resourcedetection/system
+          - resourcedetection/eks
+          - resourcedetection/gcp
+          - resourcedetection/aks
+          - resource/hostname
+          - resource/cloud
+        exporters:
+          - debug
+          - otlp/gateway
+      metrics/otel-apm:
+        receivers:
+          - otlp
+        processors:
+          - batch/metrics
+          - resource/set_node_name
+          - resource/hostname
+        exporters:
+          - debug
+          - otlp/gateway
+      traces/apm:
+        receivers:
+          - otlp
+        processors:
+          - batch
+          - resource/hostname
+        exporters:
+          - debug
+          - otlp/gateway
+
+extraManifests:
+  # # OpenTelemetry Instrumentation resource for auto-instrumentation
+  # # This enables automatic instrumentation injection for pods with the annotation:
+  # # instrumentations.opentelemetry.io/inject-{language}: "true" or "default-instrumentation"
+  # # 
+  # # Note: Replace "opentelemetry-collector" with your actual collector service name
+  # # The service name is typically: <release-name> or <fullnameOverride>
+  - apiVersion: opentelemetry.io/v1alpha1
+    kind: Instrumentation
+    metadata:
+      name: otel-instrumentation
+    spec:
+      env: []  # Required: must be an array, not null
+      exporter:
+        endpoint: http://opentelemetry-collector:4318
+      propagators:
+        - tracecontext
+        - baggage
+        - b3
+      sampler:
+        type: parentbased_traceidratio
+        argument: "1"
+      java:
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+      nodejs:
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:latest
+      dotnet:
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-dotnet:latest
+      python:
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest
+        env:
+          - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
+            value: 'true'
+      go:
+        image: ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go:latest
+
+image:
+  # OpenTelemetry Collector Contrib image (includes all contrib components)
+  # For core image use: otel/opentelemetry-collector (and set command.name to otelcol)
+  repository: "otel/opentelemetry-collector-contrib"
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+  # When digest is set to a non-empty value, images will be pulled by digest
+  digest: ""
+
+command:
+  name: "otelcol-contrib"
+  extraArgs: []
+
+extraEnvs:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: OTEL_K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+clusterRole:
+  # Specifies whether a clusterRole should be created
+  # Some presets also trigger the creation of a cluster role
+  # Set to true if you need kubeletstats receiver (requires node access)
+  create: true
+  # Annotations to add to the clusterRole
+  annotations: {}
+  # The name of the clusterRole to use
+  name: ""
+  # A set of rules for RBAC
+  # Rules needed for kubeletstats receiver
+  rules:
+    - apiGroups:
+      - ''
+      resources:
+      - 'nodes'
+      - 'configmaps'
+      verbs:
+      - 'get'
+      - 'list'
+      - 'watch'
+    - apiGroups:
+      - ''
+      resources:
+      - 'pods'
+      - 'events'
+      verbs:
+      - 'get'
+      - 'list'
+      - 'watch'
+  clusterRoleBinding:
+    annotations: {}
+    name: ""
