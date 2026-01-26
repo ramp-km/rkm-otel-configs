@@ -25,6 +25,8 @@ kubectl create secret generic elastic-secret-otel --namespace otel-contrib --fro
 
 Check : kubectl get secret -A
 
+>> You should see "elastic-secret-otel" and "opentelemetry-kube-stack-opentelemetry-operator-controller-manager-service-cert"
+
 
 4 - Install opentelemetry-kube-stack to install opentelemetry-operator and EDOT gateway collector, with EDOT daemon collector and EDOT cluster collector disabled
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -32,6 +34,8 @@ helm upgrade --install opentelemetry-kube-stack open-telemetry/opentelemetry-kub
 
 
 Check : kubectl get pods -n otel-contrib
+
+>> You should see kube-stack-opentelemetry-operator & kube-stack-gateway-collector
 
 
 5 - Install otel contrib daemon collector
@@ -43,12 +47,19 @@ helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-coll
 
 Check : kubectl get pods -n otel-contrib
 
+>> You should see opentelemetry-collector-agent
 
 6 - Other things that need to be in place
 ------------------------------------------
 
 kubectl get otelinst -n otel-contrib
 
+>> You should see elastic-instrumentation (edot) and otel-instrumentation (otel contrib)
+
 kubectl get crds
 
+>> You should see instrumentations.opentelemetry.io, opampbridges.opentelemetry.io, opentelemetrycollectors.opentelemetry.io and targetallocators.opentelemetry.io
+
 kubectl get mutatingwebhookconfiguration
+
+>> You should see opentelemetry-kube-stack-opentelemetry-operator-mutation
