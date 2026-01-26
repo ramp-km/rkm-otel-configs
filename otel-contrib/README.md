@@ -6,3 +6,5 @@ Two values.yaml files are used to setup opentelemetry-collector-contrib.
   - config: commonly needed receivers, processors and exporters + pipelines.
   - extraManifests : to define instrumentation with opentelemetry-contrib SDKs
   - clusterRole
+
+**Note: opentelemetry-contrib-values.yaml is kept up-to-date from source (open-telemetry/opentelemetry-helm-charts/charts/opentelemetry-collector/values.yaml)**
