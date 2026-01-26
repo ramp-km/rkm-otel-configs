@@ -69,7 +69,7 @@ config:
   exporters:
     debug: {}
     otlp/gateway:
-      endpoint: "http://opentelemetry-kube-stack-gateway-collector-headless.default.svc.cluster.local:4317"
+      endpoint: "http://opentelemetry-kube-stack-gateway-collector-headless.otel-contrib.svc.cluster.local:4317"
       tls:
         insecure: true
     # elasticsearch/otel:
