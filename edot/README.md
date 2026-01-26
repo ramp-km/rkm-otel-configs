@@ -8,3 +8,5 @@
   - daemon :  daemon is a K8s daemonset EDOT collector focused on gathering telemetry at node level and exposing an OTLP endpoint for data ingestion. Auto-instrumentation SDKs will use this endpoint. daemon generally forwards data to gateway
   - gateway : gateway is a K8s deployment / daemonset EDOT collector focused on processing and forwarding telemetry to an Elasticsearch endpoint.
 5. Instrumentation
+
+**Note: edot-values.yaml is kept up-to-date from source (elastic/elastic-agent/deploy/helm/edot-collector/kube-stack/values.yaml)**
