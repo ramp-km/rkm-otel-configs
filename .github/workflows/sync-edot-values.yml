@@ -1,0 +1,50 @@
+name: Pull File from Source Repo
+
+on:
+  workflow_dispatch:      # Allows you to run it manually
+  schedule:
+    - cron: '0 0 * * *'   # Runs every day at 00:00 UTC (adjust as needed)
+
+jobs:
+  pull-file:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the Target Repo (So we can write to it)
+      - name: Checkout Target Repo
+        uses: actions/checkout@v4
+
+      # Step 2: Checkout the Source Repo
+      # If Source is Public: Remove the 'token' line.
+      # If Source is Private: Add your PAT to Target Repo Secrets as SOURCE_REPO_READ_TOKEN
+      - name: Checkout Source Repo
+        uses: actions/checkout@v4
+        with:
+          repository: elastic/elastic-agent # REPLACE THIS
+          path: source-temp
+          # token: ${{ secrets.SOURCE_REPO_READ_TOKEN }} 
+
+      # Step 3: Copy the file
+      - name: Copy File
+        run: |
+          # Make sure destination folder exists
+          # mkdir -p target-folder
+          
+          # Copy file from the temporary source folder to your current repo
+          cp source-temp/deploy/helm/edot-collector/kube-stack/values.yaml edot/edot-values.yaml
+          
+          # Clean up the temp folder so we don't accidentally commit it
+          rm -rf source-temp
+
+      # Step 4: Commit and Push (Uses default GITHUB_TOKEN)
+      - name: Commit and Push
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          
+          if [[ -n $(git status -s) ]]; then
+            git add .
+            git commit -m "Sync file from Source Repo"
+            git push
+          else
+            echo "No changes detected"
+          fi
