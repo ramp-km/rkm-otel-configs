@@ -1,4 +1,4 @@
-name: Pull File from Source Repo
+name: Pull edot values.yml from Source Repo
 
 on:
   workflow_dispatch:      # Allows you to run it manually
