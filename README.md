@@ -68,8 +68,8 @@ kubectl get pods -n otel-contrib
 
 > You should see opentelemetry-collector-agent
 
-6 - Other things that need to be in place
-------------------------------------------
+6 - Validate that other things are in place
+--------------------------------------------
 
 ```
 kubectl get otelinst -n otel-contrib
