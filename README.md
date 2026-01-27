@@ -32,7 +32,7 @@ kubectl get secret -A
 > You should see "elastic-secret-otel" and "opentelemetry-kube-stack-opentelemetry-operator-controller-manager-service-cert"
 
 
-4 - Install opentelemetry-kube-stack to install opentelemetry-operator and EDOT gateway collector, with EDOT daemon collector and EDOT cluster collector disabled
+4 - Install opentelemetry-operator and EDOT gateway collector using opentelemetry-kube-stack, with EDOT daemon collector and EDOT cluster collector disabled
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 helm upgrade --install opentelemetry-kube-stack open-telemetry/opentelemetry-kube-stack --namespace otel-contrib --values 'https://raw.githubusercontent.com/ramp-km/rkm-otel-configs/refs/heads/main/edot/edot-values.yaml' --set collectors.daemon.enabled=false --set collectors.cluster.enabled=false
@@ -130,4 +130,9 @@ spec:
     metadata:
       annotations:
         instrumentation.opentelemetry.io/inject-go: "otel-contrib/otel-instrumentation"
+```
+
+> Restart the application / deployments and check the events in deployment pods that auto instrumentation has been picked-up
+```
+kubectl describe pod/<application-pod-name> -n <application_namespace>
 ```
