@@ -83,3 +83,51 @@ kubectl get mutatingwebhookconfiguration
 ```
 
 > You should see opentelemetry-kube-stack-opentelemetry-operator-mutation
+
+7 - Annotate your deployments / applications for auto-instrumentation
+----------------------------------------------------------------------
+
+> For java:
+```
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "otel-contrib/otel-instrumentation"
+```
+
+> For nodejs:
+```
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-nodejs: "otel-contrib/otel-instrumentation"
+```
+
+> For python:
+```
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "otel-contrib/otel-instrumentation"
+```
+
+> For dotnet:
+```
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-dotnet: "otel-contrib/otel-instrumentation"
+```
+
+> For go:
+```
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-go: "otel-contrib/otel-instrumentation"
+```
