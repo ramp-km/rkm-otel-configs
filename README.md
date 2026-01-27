@@ -1,8 +1,3 @@
-EDOT Installation
-------------------
-Follow guided instructions in Kibana
-
-
 
 Otel Contrib Installation in K8s
 ---------------------------------
