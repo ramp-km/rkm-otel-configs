@@ -531,7 +531,7 @@ collectors:
       - name: GOMEMLIMIT
         value: "1025MiB"
     config:
-      connectors:
+      # connectors:
         # [Elastic APM Connector](https://github.com/elastic/opentelemetry-collector-components/tree/main/connector/elasticapmconnector)
         #elasticapm: {}
       receivers:
