@@ -611,7 +611,7 @@ instrumentation:
   # Chart only emits spec.env when this list is non-empty; CRD requires array, not null.
   env:
     - name: _HELM_SPEC_ENV_ARRAY_FIX
-      value: "1"
+      value: "placeholder"
   exporter:
     endpoint: http://opentelemetry-kube-stack-daemon-collector.opentelemetry-operator-system.svc.cluster.local:4318 # The daemonset OpenTelemetry Collector endpoint where telemetry data will be exported.
   propagators:
