@@ -17,7 +17,7 @@ crds:
 defaultCRConfig:
   image:
     repository: "docker.elastic.co/elastic-agent/elastic-agent"
-    tag: "9.4.0"
+    tag: "9.3.0"
   targetAllocator:
     enabled: false # Enable/disable the Operator's Target allocator.
     # Refer to: https://github.com/open-telemetry/opentelemetry-operator/tree/main/cmd/otel-allocator
@@ -560,42 +560,28 @@ collectors:
                 - set(attributes["elasticsearch.index"], "logs")
       exporters:
         debug: {}
-        # [Elasticsearch exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/elasticsearchexporter/README.md)
-        # elasticsearch/otel:
-        #   endpoints: # List of Elasticsearch endpoints.
-        #     - ${env:ELASTIC_ENDPOINT}
-        #   api_key: ${env:ELASTIC_API_KEY} # API key for Elasticsearch authentication.
-        #   # Enable in order to skip the SSL certificate Check
-        #   # tls:
-        #   #   insecure_skip_verify: true
-        #   mapping:
-        #     mode: otel
-        elasticsearch/motlp:
-          endpoints: # List of Elasticsearch endpoints.
-            - ${env:ELASTIC_ENDPOINT}
-          api_key: ${env:ELASTIC_API_KEY} # API key for Elasticsearch authentication.
-          # Enable in order to skip the SSL certificate Check
-          # tls:
-          #   insecure_skip_verify: true
+        # OTLP HTTP exporter to Elastic MOTLP ingest endpoint; set ELASTIC_ENDPOINT = MOTLP URL in secret (e.g. https://<deployment>.ingest.<region>.gcp.elastic-cloud.com:443).
+        otlphttp/motlp:
+          endpoint: ${env:ELASTIC_ENDPOINT}
+          tls:
+            insecure: false
+          headers:
+            Authorization: "ApiKey ${env:ELASTIC_API_KEY}"
 
       service:
         pipelines:
           metrics:
             receivers: [otlp]
             processors: [batch/metrics]
-            # exporters: [debug, elasticsearch/otel]
-            exporters: [debug, elasticsearch/motlp]
+            exporters: [debug, otlphttp/motlp]
           logs:
             receivers: [otlp]
             processors: [batch, transform/logs-streams]
-            # exporters: [debug, elasticapm, elasticsearch/otel]
-            exporters: [debug, elasticsearch/motlp]
+            exporters: [debug, otlphttp/motlp]
           traces:
             receivers: [otlp]
             processors: [batch]
-            # processors: [batch, elasticapm]
-            # exporters: [debug, elasticapm, elasticsearch/otel]
-            exporters: [debug, elasticsearch/motlp]
+            exporters: [debug, otlphttp/motlp]
           # metrics/aggregated-otel-metrics:
           #   receivers:
           #     # - elasticapm
