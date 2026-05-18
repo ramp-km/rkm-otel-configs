@@ -8,6 +8,11 @@
 #
 # Default DB name matches POSTGRES_USER → database name is "postgresql".
 #
+# pg_stat_statements: shared_preload_libraries is set on the postgres process so
+# CREATE EXTENSION pg_stat_statements works and collects query stats. After first
+# deploy with this setting, run: CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+# (Changing preload requires a pod restart; kubectl rollout restart applies it.)
+#
 # Storage: set storageClassName to match your cluster (gp2 on many EKS clusters).
 # volumeClaimTemplates is immutable on a StatefulSet. To add or change storageClassName,
 # delete the StatefulSet (and old PVC if you need a new volume), then apply again:
@@ -100,6 +105,10 @@ spec:
                   key: postgres-password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          args:
+            - postgres
+            - -c
+            - shared_preload_libraries=pg_stat_statements
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
