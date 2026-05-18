@@ -136,3 +136,5 @@ spec:
 ```
 kubectl describe pod/<application-pod-name> -n <application_namespace>
 ```
+
+For **IRSA on EKS** (EDOT cluster-stats collector, `ec2:DescribeInstances`), see **[edot/README.md](edot/README.md)**.

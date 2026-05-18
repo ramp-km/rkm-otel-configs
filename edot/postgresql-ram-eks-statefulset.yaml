@@ -1,0 +1,131 @@
+# PostgreSQL single-instance on EKS (dev / lab). User and password: postgresql
+#
+# Apply:
+#   kubectl apply -f postgresql-ram-eks-statefulset.yaml
+#
+# Connect from another Pod in the cluster (Service port 5433 → container 5432):
+#   psql "postgresql://postgresql:postgresql@postgresql.database.svc.cluster.local:5433/postgresql"
+#
+# Default DB name matches POSTGRES_USER → database name is "postgresql".
+#
+# Storage: set storageClassName to match your cluster (gp2 on many EKS clusters).
+# volumeClaimTemplates is immutable on a StatefulSet. To add or change storageClassName,
+# delete the StatefulSet (and old PVC if you need a new volume), then apply again:
+#   kubectl scale statefulset/postgresql -n database --replicas=0
+#   kubectl delete pvc data-postgresql-0 -n database --ignore-not-found
+#   kubectl delete statefulset postgresql -n database
+#   kubectl apply -f postgresql-ram-eks-statefulset.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-credentials
+  namespace: database
+type: Opaque
+stringData:
+  postgres-user: postgresql
+  postgres-password: postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: database
+  labels:
+    app: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5433
+      targetPort: postgres
+  selector:
+    app: postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-headless
+  namespace: database
+  labels:
+    app: postgresql
+spec:
+  clusterIP: None
+  ports:
+    - name: postgres
+      port: 5433
+      targetPort: postgres
+  selector:
+    app: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  namespace: database
+  labels:
+    app: postgresql
+spec:
+  serviceName: postgresql-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgresql", "-d", "postgresql"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgresql", "-d", "postgresql"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: gp2
+        resources:
+          requests:
+            storage: 10Gi
