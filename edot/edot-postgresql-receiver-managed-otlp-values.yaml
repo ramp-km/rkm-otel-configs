@@ -1,0 +1,45 @@
+# PostgreSQL receiver overlay for opentelemetry-kube-stack when the BASE values are
+# Elastic managed_otlp (e.g. elastic-agent .../managed_otlp/values.yaml).
+#
+# Gateway metrics pipeline must stay aligned with that chart:
+#   processors: []  and  exporters: [debug, otlp/ingest_metrics_traces]
+#
+# Apply AFTER creating Secret postgresql-otel-ram-eks (see commands in edot/README.md).
+#
+# Note: chart `extraEnvs` is global — merged into every collector Pod; only gateway
+# uses these vars in config.
+
+extraEnvs:
+  - name: POSTGRESQL_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: endpoint
+  - name: POSTGRESQL_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: username
+  - name: POSTGRESQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: password
+
+collectors:
+  gateway:
+    config:
+      receivers:
+        postgresql:
+          endpoint: ${env:POSTGRESQL_ENDPOINT}
+          username: ${env:POSTGRESQL_USERNAME}
+          password: ${env:POSTGRESQL_PASSWORD}
+          collection_interval: 60s
+          tls:
+            insecure: true
+      service:
+        pipelines:
+          metrics:
+            receivers: [otlp, postgresql]
+            processors: []
+            exporters: [debug, otlp/ingest_metrics_traces]

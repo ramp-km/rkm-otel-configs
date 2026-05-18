@@ -1,0 +1,52 @@
+# PostgreSQL receiver overlay for opentelemetry-kube-stack (EDOT gateway).
+# Apply together with edot-values.yaml — later files override:
+#
+#   helm upgrade --install opentelemetry-kube-stack open-telemetry/opentelemetry-kube-stack \
+#     -n opentelemetry-operator-system \
+#     -f edot-values.yaml \
+#     -f edot-postgresql-receiver-values.yaml
+#
+# Prerequisites:
+#   - Create Secret postgresql-otel-ram-eks (see postgresql-otel-ram-eks-secret.example.yaml)
+#
+# Note: extraEnvs is chart-global; these variables are merged into every collector Pod.
+#   Only the gateway uses them in config; other collectors ignore them.
+#
+# If your base values use different gateway exporter names than otlphttp/motlp / debug,
+# update collectors.gateway.config.service.pipelines.metrics to match — or use
+# edot-postgresql-receiver-managed-otlp-values.yaml for Elastic managed_otlp charts.
+
+extraEnvs:
+  - name: POSTGRESQL_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: endpoint
+  - name: POSTGRESQL_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: username
+  - name: POSTGRESQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-otel-ram-eks
+        key: password
+
+collectors:
+  gateway:
+    config:
+      receivers:
+        postgresql:
+          endpoint: ${env:POSTGRESQL_ENDPOINT}
+          username: ${env:POSTGRESQL_USERNAME}
+          password: ${env:POSTGRESQL_PASSWORD}
+          collection_interval: 60s
+          tls:
+            insecure: true
+      service:
+        pipelines:
+          metrics:
+            receivers: [otlp, postgresql]
+            processors: [batch/metrics]
+            exporters: [debug, otlphttp/motlp]
