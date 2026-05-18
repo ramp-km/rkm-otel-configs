@@ -17,7 +17,7 @@ crds:
 defaultCRConfig:
   image:
     repository: "docker.elastic.co/elastic-agent/elastic-agent"
-    tag: "9.3.0"
+    tag: "9.5.0"
   targetAllocator:
     enabled: false # Enable/disable the Operator's Target allocator.
     # Refer to: https://github.com/open-telemetry/opentelemetry-operator/tree/main/cmd/otel-allocator
@@ -41,7 +41,7 @@ collectors:
     fullnameOverride: "opentelemetry-kube-stack-cluster-stats"
     env:
       - name: ELASTIC_AGENT_OTEL
-        value: '"true"'
+        value: "true"
     config:
       exporters:
         # [Debug exporter](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/debugexporter/README.md)
@@ -52,6 +52,8 @@ collectors:
           endpoint: "http://opentelemetry-kube-stack-gateway-collector:4317"
           tls:
             insecure: true
+      extensions:
+        cgroupruntime: {}
       processors:
         # [Resource Detection Processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/resourcedetectionprocessor)
         resourcedetection/eks:
@@ -140,6 +142,7 @@ collectors:
               enabled: true
       # [Service Section](https://opentelemetry.io/docs/collector/configuration/#service)
       service:
+        extensions: [cgroupruntime]
         pipelines:
           metrics:
             exporters:
@@ -171,7 +174,7 @@ collectors:
     fullnameOverride: "opentelemetry-kube-stack-daemon"
     env:
       - name: ELASTIC_AGENT_OTEL
-        value: '"true"'
+        value: "true"
     presets:
       logsCollection:
         enabled: true # Enable/disable the collection of node's logs.
@@ -243,10 +246,12 @@ collectors:
                 enabled: false
               host.arch:
                 enabled: true
-              host.ip:
-                enabled: true
-              host.mac:
-                enabled: true
+              # Disabling host.ip host.mac due to high cardinality
+              # See issue: https://github.com/elastic/elastic-agent/issues/13575
+              # host.ip:
+              #   enabled: true
+              # host.mac:
+              #   enabled: true
               host.cpu.vendor.id:
                 enabled: true
               host.cpu.family:
@@ -304,6 +309,7 @@ collectors:
               - "k8s.pod.ip"
               - "k8s.pod.uid"
               - "k8s.pod.start_time"
+              - "container.id"
               # Service attributes added based on https://opentelemetry.io/docs/specs/semconv/non-normative/k8s-attributes/#service-attributes
               - "service.name"
               - "service.version"
@@ -436,8 +442,11 @@ collectors:
               enabled: true
           extra_metadata_labels:
             - container.id
+      extensions:
+        cgroupruntime: {}
       # [Service Section](https://opentelemetry.io/docs/collector/configuration/#service)
       service:
+        extensions: [cgroupruntime]
         pipelines:
           # Disable default non used kube-stack Helm Chart pipelines
           logs: null
@@ -478,6 +487,7 @@ collectors:
               - otlp
             processors:
               - batch/metrics
+              - k8sattributes
               - resource/hostname
             exporters:
               - otlp/gateway
@@ -486,6 +496,7 @@ collectors:
               - otlp
             processors:
               - batch
+              - k8sattributes
               - resource/hostname
             exporters:
               - otlp/gateway
@@ -494,6 +505,7 @@ collectors:
               - otlp
             processors:
               - batch
+              - k8sattributes
               - resource/hostname
             exporters:
               - otlp/gateway
@@ -513,7 +525,7 @@ collectors:
     enabled: true
     env:
       - name: ELASTIC_AGENT_OTEL
-        value: '"true"'
+        value: "true"
       - name: ELASTIC_ENDPOINT
         valueFrom:
           secretKeyRef:
@@ -560,15 +572,20 @@ collectors:
                 - set(attributes["elasticsearch.index"], "logs")
       exporters:
         debug: {}
-        # OTLP HTTP exporter to Elastic MOTLP ingest endpoint; set ELASTIC_ENDPOINT = MOTLP URL in secret (e.g. https://<deployment>.ingest.<region>.gcp.elastic-cloud.com:443).
-        otlphttp/motlp:
-          endpoint: ${env:ELASTIC_ENDPOINT}
-          tls:
-            insecure: false
-          headers:
-            Authorization: "ApiKey ${env:ELASTIC_API_KEY}"
-
+        # [Elasticsearch exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/elasticsearchexporter/README.md)
+        elasticsearch/otel:
+          endpoints: # List of Elasticsearch endpoints.
+            - ${env:ELASTIC_ENDPOINT}
+          api_key: ${env:ELASTIC_API_KEY} # API key for Elasticsearch authentication.
+          # Enable in order to skip the SSL certificate Check
+          # tls:
+          #   insecure_skip_verify: true
+          mapping:
+            mode: otel
+      extensions:
+        cgroupruntime: {}
       service:
+        extensions: [cgroupruntime]
         pipelines:
           metrics:
             receivers: [otlp]
@@ -608,12 +625,12 @@ instrumentation:
     type: parentbased_traceidratio # Sampler type
     argument: "1.0" # Sampling rate set to 100% (all traces are sampled).
   java:
-    image: docker.elastic.co/observability/elastic-otel-javaagent:1.7.0
+    image: docker.elastic.co/observability/elastic-otel-javaagent:1.11.0
   nodejs:
-    image: docker.elastic.co/observability/elastic-otel-node:1.6.0
+    image: docker.elastic.co/observability/elastic-otel-node:1.11.0
   dotnet:
-    image: docker.elastic.co/observability/elastic-otel-dotnet:1.1.0
+    image: docker.elastic.co/observability/elastic-otel-dotnet:1.4.0
   python:
-    image: docker.elastic.co/observability/elastic-otel-python:1.10.0
+    image: docker.elastic.co/observability/elastic-otel-python:1.12.0
   go:
-    image: ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go:v0.23.0
+    image: ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go:v0.24.0
