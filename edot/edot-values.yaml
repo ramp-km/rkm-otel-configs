@@ -543,9 +543,9 @@ collectors:
       - name: GOMEMLIMIT
         value: "1025MiB"
     config:
-      # connectors:
+      connectors:
         # [Elastic APM Connector](https://github.com/elastic/opentelemetry-collector-components/tree/main/connector/elasticapmconnector)
-        #elasticapm: {}
+        elasticapm: {}
       receivers:
         otlp:
           protocols:
@@ -564,12 +564,7 @@ collectors:
           timeout: 1s
         # [Elastic APM Processor](https://github.com/elastic/opentelemetry-collector-components/tree/main/processor/elasticapmprocessor)
         # The processor enriches traces with elastic specific requirements.
-        # elasticapm: {}
-        transform/logs-streams:
-          log_statements:
-            - context: resource
-              statements:
-                - set(attributes["elasticsearch.index"], "logs")
+        elasticapm: {}
       exporters:
         debug: {}
         # [Elasticsearch exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/elasticsearchexporter/README.md)
@@ -590,31 +585,28 @@ collectors:
           metrics:
             receivers: [otlp]
             processors: [batch/metrics]
-            exporters: [debug, otlphttp/motlp]
+            exporters: [debug, elasticsearch/otel]
           logs:
             receivers: [otlp]
-            processors: [batch, transform/logs-streams]
-            exporters: [debug, otlphttp/motlp]
+            processors: [batch]
+            exporters: [debug, elasticapm, elasticsearch/otel]
           traces:
             receivers: [otlp]
-            processors: [batch]
-            exporters: [debug, otlphttp/motlp]
-          # metrics/aggregated-otel-metrics:
-          #   receivers:
-          #     # - elasticapm
-          #   processors: []
-          #   exporters:
-          #     - debug
-          #     - elasticsearch/otel
+            processors: [batch, elasticapm]
+            exporters: [debug, elasticapm, elasticsearch/otel]
+          metrics/aggregated-otel-metrics:
+            receivers:
+              - elasticapm
+            processors: []
+            exporters:
+              - debug
+              - elasticsearch/otel
 # For more details on OpenTelemetry's zero-code instrumentation, see:
 # https://opentelemetry.io/docs/concepts/instrumentation/zero-code/
 instrumentation:
   name: elastic-instrumentation
   enabled: true # Enable/disable auto-instrumentation.
-  # Chart only emits spec.env when this list is non-empty; CRD requires array, not null.
-  env:
-    - name: _HELM_SPEC_ENV_ARRAY_FIX
-      value: "placeholder"
+  env: []
   exporter:
     endpoint: http://opentelemetry-kube-stack-daemon-collector.opentelemetry-operator-system.svc.cluster.local:4318 # The daemonset OpenTelemetry Collector endpoint where telemetry data will be exported.
   propagators:
